@@ -1,0 +1,17 @@
+# Build output
+target/
+
+# Execution evidence (keep folder structure via .gitkeep, ignore generated content)
+test-output/*
+!test-output/.gitkeep
+reports/*
+!reports/.gitkeep
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Logs
+*.log
