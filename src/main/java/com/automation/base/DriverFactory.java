@@ -56,7 +56,7 @@ public final class DriverFactory {
                 EdgeOptions edgeOptions = new EdgeOptions();
                 edgeOptions.addArguments("--window-size=1920,1080");
                 if (headless) {
-                    edgeOptions.addArguments("--headless=new");
+                    edgeOptions.addArguments("--headless=new", "--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage");
                 }
                 return new EdgeDriver(edgeOptions);
 

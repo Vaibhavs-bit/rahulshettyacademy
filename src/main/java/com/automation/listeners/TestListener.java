@@ -7,6 +7,7 @@ import com.automation.config.ConfigReader;
 import com.automation.core.ExecutionManager;
 import com.automation.logging.FrameworkLogger;
 import com.automation.reporting.ExtentReportManager;
+import com.automation.tracker.TestCaseTracker;
 import com.automation.utils.ScreenshotUtils;
 import org.apache.logging.log4j.Logger;
 import org.openqa.selenium.WebDriver;
@@ -58,6 +59,7 @@ public class TestListener implements ITestListener {
         ExecutionManager.incrementPassed();
         String name = result.getMethod().getMethodName();
         logger.info("Test passed: {}", name);
+        recordTrackerResult(result, "Pass");
         attachScreenshot(name, "passed", Status.PASS, "Test passed");
     }
 
@@ -69,6 +71,7 @@ public class TestListener implements ITestListener {
         if (ConfigReader.isReportEnabled() && ExtentReportManager.getTest() != null) {
             ExtentReportManager.getTest().fail(result.getThrowable());
         }
+        recordTrackerResult(result, "Fail");
         attachScreenshot(name, "failed", Status.FAIL, "Test failed: " + result.getThrowable());
     }
 
@@ -77,7 +80,16 @@ public class TestListener implements ITestListener {
         ExecutionManager.incrementSkipped();
         String name = result.getMethod().getMethodName();
         logger.warn("Test skipped: {}", name, result.getThrowable());
+        recordTrackerResult(result, "Blocked");
         attachScreenshot(name, "skipped", Status.SKIP, "Test skipped: " + result.getThrowable());
+    }
+
+    /** Pushes the result into the Test Case Tracker web app's execution-data.js, keyed by Class#method. */
+    private void recordTrackerResult(ITestResult result, String status) {
+        String automationKey = result.getTestClass().getRealClass().getName() + "#" + result.getMethod().getMethodName();
+        long durationMs = result.getEndMillis() - result.getStartMillis();
+        String errorMessage = result.getThrowable() != null ? result.getThrowable().getMessage() : null;
+        TestCaseTracker.recordResult(automationKey, status, durationMs, errorMessage);
     }
 
     private void attachScreenshot(String testName, String status, Status extentStatus, String message) {

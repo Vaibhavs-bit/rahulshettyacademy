@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Test Case Tracker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>Test Case Tracker</h1>
+    <p class="subtitle">selenium-automation-framework</p>
+  </header>
+
+  <section class="summary-cards" id="summaryCards"></section>
+
+  <section class="toolbar">
+    <input type="text" id="searchInput" placeholder="Search by ID or title...">
+    <select id="statusFilter">
+      <option value="">All statuses</option>
+      <option value="Pass">Pass</option>
+      <option value="Fail">Fail</option>
+      <option value="Blocked">Blocked</option>
+      <option value="Not Run">Not Run</option>
+    </select>
+    <select id="priorityFilter">
+      <option value="">All priorities</option>
+      <option value="High">High</option>
+      <option value="Medium">Medium</option>
+      <option value="Low">Low</option>
+    </select>
+    <select id="automatedFilter">
+      <option value="">Automated + Manual</option>
+      <option value="true">Automated only</option>
+      <option value="false">Manual only</option>
+    </select>
+    <div class="toolbar-spacer"></div>
+    <button id="runAllBtn" class="btn btn-primary" title="Runs every automated test case currently shown in the table below">Run All</button>
+    <button id="addBtn" class="btn btn-primary">+ Add Test Case</button>
+    <button id="exportBtn" class="btn">Export JSON</button>
+    <label class="btn" for="importFile">Import JSON</label>
+    <input type="file" id="importFile" accept="application/json" hidden>
+    <button id="resetBtn" class="btn btn-danger">Reset to Seed</button>
+    <button id="expandAllBtn" class="btn">Expand All</button>
+    <button id="collapseAllBtn" class="btn">Collapse All</button>
+  </section>
+
+  <div id="pageGroupsContainer"></div>
+
+  <!-- Add / Edit modal -->
+  <div class="modal-backdrop" id="editModal">
+    <div class="modal">
+      <h2 id="modalTitle">Add Test Case</h2>
+      <form id="tcForm">
+        <input type="hidden" id="f-originalId">
+        <label>ID <input type="text" id="f-id" required placeholder="TC-004"></label>
+        <label>Title <input type="text" id="f-title" required></label>
+        <label>Description <textarea id="f-description" rows="2"></textarea></label>
+        <label>Steps (one per line) <textarea id="f-steps" rows="4"></textarea></label>
+        <label>Expected Result <textarea id="f-expectedResult" rows="2"></textarea></label>
+        <div class="form-row">
+          <label>Priority
+            <select id="f-priority">
+              <option>High</option>
+              <option>Medium</option>
+              <option>Low</option>
+            </select>
+          </label>
+          <label>Requirement / Story <input type="text" id="f-requirement" placeholder="JIRA-123"></label>
+        </div>
+        <div class="form-row">
+          <label>Groups / Tags <input type="text" id="f-groups" placeholder="smoke, regression"></label>
+          <label class="checkbox-label"><input type="checkbox" id="f-automated"> Automated</label>
+        </div>
+        <label id="automationKeyWrap">Automation Key (Class#method)
+          <input type="text" id="f-automationKey" placeholder="com.automation.tests.LoginTest#verifySuccessfulLogin">
+        </label>
+        <div class="form-row">
+          <label>Page Object (POM) file
+            <input type="text" id="f-pageClassFile" list="pageFilesList" placeholder="src/main/java/com/automation/pages/LoginPage.java">
+            <datalist id="pageFilesList"></datalist>
+          </label>
+          <label>Test Class file
+            <input type="text" id="f-testClassFile" list="testFilesList" placeholder="src/test/java/com/automation/tests/LoginTest.java">
+            <datalist id="testFilesList"></datalist>
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" id="cancelBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Run Test modal: executes the linked automation key via Maven (headed by default) -->
+  <div class="modal-backdrop" id="runModal">
+    <div class="modal modal-lg">
+      <h2 id="runModalTitle">Run Test</h2>
+      <div id="runOfflineBanner" class="code-banner" hidden>
+        Tracker server isn't reachable, so tests can't be run from here. Run
+        <code>node server.js</code> in <code>tools/testcase-tracker</code> and open
+        <code>http://localhost:5500</code> instead of a file:// URL.
+      </div>
+      <div class="form-row">
+        <label>Browser
+          <select id="runBrowser">
+            <option value="edge" selected>Edge (verified working)</option>
+            <option value="chrome">Chrome (driver/version mismatch on this machine)</option>
+            <option value="firefox">Firefox (not installed on this machine)</option>
+          </select>
+        </label>
+        <label class="checkbox-label"><input type="checkbox" id="runHeadless"> Headless (unchecked = headed, browser window visible)</label>
+      </div>
+      <p class="browser-support-note">
+        Checked on this machine: Edge works end-to-end. Chrome fails - the installed Chrome is
+        newer than any ChromeDriver Selenium Manager can resolve/download here. Firefox isn't
+        installed and auto-download is blocked. Stick with Edge unless this environment changes.
+      </p>
+      <pre id="runOutput" class="code-editor run-output"></pre>
+      <div class="modal-actions">
+        <span id="runStatus" class="code-status"></span>
+        <button type="button" class="btn" id="runCloseBtn">Close</button>
+        <button type="button" class="btn btn-primary" id="runStartBtn">Run</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mark result modal (manual test cases only) -->
+  <div class="modal-backdrop" id="resultModal">
+    <div class="modal">
+      <h2>Record Result</h2>
+      <form id="resultForm">
+        <input type="hidden" id="r-id">
+        <label>Status
+          <select id="r-status">
+            <option>Pass</option>
+            <option>Fail</option>
+            <option>Blocked</option>
+            <option>Not Run</option>
+          </select>
+        </label>
+        <label>Note <textarea id="r-note" rows="2"></textarea></label>
+        <div class="modal-actions">
+          <button type="button" class="btn" id="resultCancelBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Record</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- History modal -->
+  <div class="modal-backdrop" id="historyModal">
+    <div class="modal">
+      <h2>Execution History</h2>
+      <div id="historyContent"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="historyCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Code modal: view/edit the real Page Object + Test class source behind a test case -->
+  <div class="modal-backdrop" id="codeModal">
+    <div class="modal modal-lg">
+      <h2 id="codeModalTitle">Code</h2>
+      <div id="codeOfflineBanner" class="code-banner" hidden>
+        Tracker server isn't reachable, so source files can't be loaded or saved. Run
+        <code>node server.js</code> in <code>tools/testcase-tracker</code> and open
+        <code>http://localhost:5500</code> instead of a file:// URL.
+      </div>
+      <div class="code-tabs">
+        <button type="button" class="code-tab active" data-pane="pageTab">Page Object (POM)</button>
+        <button type="button" class="code-tab" data-pane="testTab">Test Class</button>
+      </div>
+
+      <div class="code-pane" id="pageTab">
+        <div class="code-file-row">
+          <input type="text" id="codePageFile" list="pageFilesList" placeholder="src/main/java/com/automation/pages/LoginPage.java">
+          <button type="button" class="btn" id="codePageLoadBtn">Load</button>
+          <span class="code-file-spacer"></span>
+          <input type="text" id="newPageClassName" placeholder="New class name, e.g. CheckoutPage">
+          <button type="button" class="btn" id="codePageNewBtn">+ Create Page</button>
+        </div>
+        <textarea id="codePageEditor" class="code-editor" spellcheck="false" placeholder="Load a Page Object file to view/edit its locators and methods here..."></textarea>
+        <div class="modal-actions">
+          <span id="codePageStatus" class="code-status"></span>
+          <button type="button" class="btn btn-primary" id="codePageSaveBtn">Save to file</button>
+        </div>
+      </div>
+
+      <div class="code-pane" id="testTab" hidden>
+        <div class="code-file-row">
+          <input type="text" id="codeTestFile" list="testFilesList" placeholder="src/test/java/com/automation/tests/LoginTest.java">
+          <button type="button" class="btn" id="codeTestLoadBtn">Load</button>
+          <span class="code-file-spacer"></span>
+          <input type="text" id="newTestClassName" placeholder="New class name, e.g. CheckoutTest">
+          <button type="button" class="btn" id="codeTestNewBtn">+ Create Test</button>
+        </div>
+        <textarea id="codeTestEditor" class="code-editor" spellcheck="false" placeholder="Load a test class file to view/edit its test steps here..."></textarea>
+        <div class="modal-actions">
+          <span id="codeTestStatus" class="code-status"></span>
+          <button type="button" class="btn btn-primary" id="codeTestSaveBtn">Save to file</button>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn" id="codeCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="data/seed-data.js"></script>
+  <script src="data/execution-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -40,9 +40,10 @@ selenium-automation-framework/
 │   ├── log4j2.xml
 │   └── testdata/login-data.properties
 └── src/test/java/com/automation/tests/
-    ├── BaseTest.java       (per-test browser setup/teardown)
-    ├── LoginTest.java      (successful + invalid login scenarios)
-    └── NavigationTest.java (page-load verification)
+│   ├── BaseTest.java       (per-test browser setup/teardown)
+│   ├── LoginTest.java      (successful + invalid login scenarios)
+│   └── NavigationTest.java (page-load verification)
+└── tools/testcase-tracker/ (standalone test case tracking web app, see section 15)
 ```
 
 ### Why each major component exists
@@ -64,6 +65,9 @@ selenium-automation-framework/
   ExtentReports instance.
 - **ExtentReportManager** – owns the single `ExtentReports` instance; uses a
   `ThreadLocal<ExtentTest>` so parallel tests don't attach steps to the wrong test.
+- **TestCaseTracker** – writes each test's pass/fail/blocked result into
+  `tools/testcase-tracker/data/execution-data.js` so the tracker web app shows live
+  automation status next to manually tracked test cases.
 
 ## 3. Prerequisites
 
@@ -225,3 +229,41 @@ failure stack traces, and attached screenshots.
 - Log4j2's rolling file path is static (`test-output/execution.log`), not nested per execution
   ID, since Log4j2 configuration is resolved before `ExecutionManager` generates the ID at
   runtime; screenshots and the HTML report are nested per execution ID.
+
+## 15. Test Case Tracker
+
+`tools/testcase-tracker/` is a standalone, no-build web app for tracking both manual and
+automated test cases side by side. Open `tools/testcase-tracker/index.html` directly in a
+browser (no server needed).
+
+- **Manual test cases** are added via the "+ Add Test Case" button (title, steps, expected
+  result, priority, requirement/story link, groups). Results are recorded with "Mark Result"
+  and persist in the browser's local storage.
+- **Automated test cases** are linked by setting "Automation Key" to `ClassName#methodName`
+  (e.g. `com.automation.tests.LoginTest#verifySuccessfulLogin`). Their status, last-run time,
+  and history update automatically - `TestCaseTracker.java` writes
+  `tools/testcase-tracker/data/execution-data.js` after every test run via `TestListener`.
+- **Seed data**: `tools/testcase-tracker/data/seed-data.js` ships with entries for the existing
+  `LoginTest` cases; add more there, or use the UI (which also supports JSON export/import and
+  "Reset to Seed").
+- **Code tab (view/edit real source)**: each row has a "Code" button showing the linked Page
+  Object (POM) and TestNG test class side by side, so you can tweak locators/xpaths or steps
+  without leaving the tracker. This needs filesystem access the static page can't do on its
+  own, so run the small bundled server instead of opening the HTML file directly:
+  `node tools/testcase-tracker/server.js`, then browse to `http://localhost:5500`. Link a test
+  case to its source files via the "Page Object (POM) file" / "Test Class file" fields in
+  Add/Edit (autocompletes from files under `src/main/java/com/automation/pages` and
+  `src/test/java/com/automation/tests`), or use "+ Create Page"/"+ Create Test" in the Code
+  modal to scaffold a brand-new class. The server only reads/writes `.java` files under this
+  project's `src/main/java` and `src/test/java`, and binds to localhost only.
+- **Run button (headed execution)**: automated test cases also get a "Run" button (needs
+  `server.js` running, same as the Code tab). Pick a browser (Edge confirmed working on this
+  machine; Chrome/Firefox are currently broken here - see dropdown hints) and leave "Headless"
+  unchecked to watch the browser window live, then click Run - it shells out to Maven
+  (`POST /api/run-test`), streams the TestNG/Selenium log back into the modal, and refreshes
+  the row's Pass/Fail status once `TestCaseTracker.java` writes the result.
+- **Run All**: the toolbar's "Run All" button runs every *automated* test case currently shown
+  in the table (respects the search/status/priority/automated filters, so filter by group first
+  to run a subset) in one Maven invocation (`POST /api/run-all`), grouped and parallelized by
+  class, then reports a pass/fail tally.
+
